@@ -1,5 +1,6 @@
 # 全球气象监测系统 // 3D数字地球 (World Weather Globe)
 
+[![Live Demo](https://img.shields.io/badge/🌐_在线预览-点击体验-00f2fe?style=for-the-badge&logo=githubpages&logoColor=white)](https://weixunwuming.github.io/world-weather-globe/)
 [![Architecture: Stark Minimalist Bauhaus](https://img.shields.io/badge/Architecture-Stark_Bauhaus_Tech-00f2fe?style=flat-square)](#设计美学与视觉哲学)
 [![UI: 60 FPS Canvas WebGL](https://img.shields.io/badge/FPS-60_Locked-emerald?style=flat-square)](#核心技术架构)
 [![Data Service: Open--Meteo API](https://img.shields.io/badge/Data_Service-Open--Meteo_API-orange?style=flat-square)](#实时气象与离线物理气候引擎)

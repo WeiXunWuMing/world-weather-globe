@@ -1,0 +1,610 @@
+/* 
+  WEATHER_GLOBE // STARK BAUHAUS TECHNICAL DESIGN SYSTEM
+  Monochrome palette, strict geometry, monospace grids, absolute alignment.
+*/
+
+:root {
+  /* Color system */
+  --bg-primary: #0b0c10;
+  --bg-secondary: #14171d;
+  --bg-tertiary: #1f232b;
+  --border-white: #ffffff;
+  --border-gray: #303641;
+  --border-muted: #1d2129;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #c5c6c7;
+  --text-muted: #626b7c;
+  --text-accent: #00f2fe; /* Very rare glowing cyan accent for highlights */
+  
+  /* Font structure with strict Chinese monospace/sans-serif fallbacks */
+  --font-tech: 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', 'SimHei', monospace;
+}
+
+/* Base resets */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: var(--font-tech);
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  user-select: none;
+}
+
+/* Canvas background and overlays */
+#grid-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+#webgl-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none; /* Let pointer events fall through to the interactive globe-canvas! */
+}
+
+#globe-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  cursor: crosshair;
+  background: transparent;
+}
+
+/* Technical HUD Header */
+#hud-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  border-bottom: 1px solid var(--border-white);
+  background-color: rgba(11, 12, 16, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.hud-left, .hud-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hud-logo {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.hud-divider {
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.hud-metric {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+#hud-status {
+  color: var(--text-primary);
+  position: relative;
+  padding-left: 12px;
+}
+
+#hud-status::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-primary);
+  box-shadow: 0 0 4px var(--text-primary);
+}
+
+/* Search engine absolute positioning in HUD */
+.hud-center {
+  display: flex;
+  justify-content: center;
+  flex-grow: 1;
+  max-width: 480px;
+}
+
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.search-label, .search-bracket {
+  white-space: pre;
+  color: var(--text-muted);
+}
+
+#search-input {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 11px;
+  width: 100%;
+  padding: 2px 8px;
+  font-family: var(--font-tech);
+  outline: none;
+}
+
+#search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  width: 100%;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-white);
+  list-style: none;
+  z-index: 100;
+  display: none;
+}
+
+.search-dropdown.active {
+  display: block;
+}
+
+.search-dropdown li {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-gray);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+}
+
+.search-dropdown li:last-child {
+  border-bottom: none;
+}
+
+.search-dropdown li:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.search-dropdown li .highlight {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* Stark Technical Panel style (common to Hover card and Detail panel) */
+.tech-panel {
+  position: absolute;
+  background-color: rgba(11, 12, 16, 0.95);
+  border: 1px solid var(--border-white);
+  z-index: 20;
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel-header {
+  height: 36px;
+  border-bottom: 1px solid var(--border-white);
+  padding: 0 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-secondary);
+}
+
+.panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 11px;
+  font-family: var(--font-tech);
+  padding: 2px 8px;
+  transition: all 0.15s ease;
+}
+
+.panel-close:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.panel-body {
+  padding: 16px;
+}
+
+/* Hover-Card specifications (CRITICAL FIX: pointer-events: none to allow clicks through) */
+#hover-card {
+  width: 320px;
+  pointer-events: none;
+}
+
+#hover-card.hidden {
+  opacity: 0;
+  transform: scale(0.97) translateY(10px);
+}
+
+/* Technical text spacing */
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.metric-row:last-child {
+  margin-bottom: 0;
+}
+
+.metric-row .label {
+  color: var(--text-muted);
+}
+
+.metric-row .value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.tech-divider {
+  height: 1px;
+  background-color: var(--border-white);
+  margin: 12px 0;
+}
+
+/* Spinner and Loading displays */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  gap: 12px;
+}
+
+.line-spinner {
+  width: 24px;
+  height: 2px;
+  background-color: var(--text-primary);
+  animation: line-pulse 1.2s infinite ease-in-out;
+}
+
+.loading-text {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border: 1px dashed var(--border-white);
+  background-color: rgba(255, 0, 0, 0.05);
+}
+
+.error-text {
+  font-size: 9px;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Weather parameters display grid */
+.weather-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+#weather-icon-container {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-gray);
+  background-color: var(--bg-secondary);
+}
+
+.weather-numbers {
+  display: flex;
+  flex-direction: column;
+}
+
+.temp-display {
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.temp-display .unit {
+  font-size: 14px;
+  vertical-align: super;
+}
+
+.condition-display {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.grid-cell {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-gray);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cell-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+.cell-val {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+/* Forecast charts section */
+.forecast-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forecast-header {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}
+
+#forecast-canvas {
+  border: 1px solid var(--border-gray);
+  background-color: var(--bg-secondary);
+  width: 100%;
+}
+
+/* Slide-out Detailed panel */
+#detail-panel {
+  top: 48px;
+  right: 0;
+  width: 400px;
+  height: calc(100% - 80px); /* Leave room for footer */
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  z-index: 15;
+}
+
+#detail-panel.hidden {
+  transform: translateX(100%);
+}
+
+.detail-scroll-container {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-white) var(--bg-primary);
+}
+
+.detail-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detail-scroll-container::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.detail-scroll-container::-webkit-scrollbar-thumb {
+  background-color: var(--border-white);
+}
+
+.focus-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  line-height: 1.2;
+}
+
+.focus-header .subtitle {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  display: block;
+  margin-top: 4px;
+}
+
+.detail-section h3 {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+
+.log-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  text-align: justify;
+}
+
+.log-text.italic {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Technical lists inside detail sheet */
+.tech-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tech-list li {
+  padding: 8px 12px;
+  border: 1px solid var(--border-gray);
+  background-color: var(--bg-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.tech-list li:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--border-white);
+}
+
+.tech-list li .arrow {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.tech-list li:hover .arrow {
+  color: var(--bg-primary);
+}
+
+/* Atmospheric summary detail block */
+.detail-weather-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-weather-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+/* Footer layout instructions */
+#hud-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 32px;
+  border-top: 1px solid var(--border-white);
+  background-color: var(--bg-primary);
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.instruction-tick {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.instruction {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.instruction-divider {
+  color: var(--border-gray);
+  font-size: 9px;
+}
+
+#hud-fps {
+  color: var(--text-muted);
+}
+
+/* Vector animations */
+@keyframes line-pulse {
+  0% {
+    transform: scaleX(0.1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(0.1);
+    opacity: 0.2;
+  }
+}
+
+/* Scrollbars for overflow elements */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-white);
+}

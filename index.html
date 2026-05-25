@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全球气象监测系统 // 3D数字地球</title>
+  <meta name="description" content="基于正交投影的3D交互式数字地球气象监测系统，具备全局级别细化LOD架构与Open-Meteo实时气象追踪服务。">
+  <link rel="stylesheet" href="index.css">
+  <!-- 引入 Google Fonts: JetBrains Mono，为中文数字及英文字体提供严格的单等宽技术感 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- 3D地球渲染画布与背景网格 -->
+  <canvas id="grid-canvas"></canvas>
+  <canvas id="webgl-canvas"></canvas>
+  <canvas id="globe-canvas"></canvas>
+
+  <!-- 顶部系统诊断 HUD 控制栏 -->
+  <header id="hud-header">
+    <div class="hud-left">
+      <h1 class="hud-logo">SYS.气象地球_v1.0</h1>
+      <span class="hud-divider">|</span>
+      <span class="hud-metric" id="hud-status">系统状态: 正常运行</span>
+      <span class="hud-divider">|</span>
+      <span class="hud-metric" id="hud-scale">缩放倍率: x1.00</span>
+    </div>
+    
+    <div class="hud-center">
+      <div class="search-container">
+        <label for="search-input" class="search-label">[ 导航搜索: </label>
+        <input type="text" id="search-input" placeholder="输入城市 / 山峰 / 盆地 / 国家" autocomplete="off" spellcheck="false">
+        <span class="search-bracket"> ]</span>
+        <ul id="search-results" class="search-dropdown"></ul>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <span class="hud-metric" id="hud-coords">坐标基准: EPSG:4326</span>
+      <span class="hud-divider">|</span>
+      <span class="hud-metric" id="hud-time">世界标准时间: 00:00:00</span>
+    </div>
+  </header>
+
+  <!-- 悬停即显的浮动气象指标卡片 -->
+  <div id="hover-card" class="tech-panel hidden">
+    <div class="panel-header">
+      <span class="panel-title">[ 目标锁定 ]</span>
+      <button class="panel-close" id="hover-card-close" style="display:none;">×</button>
+    </div>
+    <div class="panel-body">
+      <div class="metric-row">
+        <span class="label">目标区域:</span>
+        <span class="value" id="hover-loc">大洋网格</span>
+      </div>
+      <div class="metric-row">
+        <span class="label">地理坐标:</span>
+        <span class="value" id="hover-coords">00.00°N, 00.00°E</span>
+      </div>
+      <div class="metric-row">
+        <span class="label">当地时间:</span>
+        <span class="value" id="hover-time">00:00:00</span>
+      </div>
+      
+      <!-- 技术风格分割线 -->
+      <div class="tech-divider"></div>
+      
+      <div class="weather-brief" id="weather-data-container">
+        <!-- 载入中状态 -->
+        <div id="weather-loading" class="loading-container">
+          <div class="line-spinner"></div>
+          <span class="loading-text">正在从 OPEN-METEO 获取实时气象数据...</span>
+        </div>
+        
+        <!-- API载入异常状态 -->
+        <div id="weather-error" class="error-container hidden">
+          <span class="error-text">API 响应超时 // 切换为离线物理气象模拟模式</span>
+        </div>
+
+        <!-- 气象结果渲染面板 -->
+        <div id="weather-display" class="hidden">
+          <div class="weather-main">
+            <div id="weather-icon-container">
+              <!-- SVG 动态几何气象图标将在此安全注入 -->
+            </div>
+            <div class="weather-numbers">
+              <div class="temp-display"><span id="weather-temp">--.-</span><span class="unit">°C</span></div>
+              <div class="condition-display" id="weather-desc">N/A</div>
+            </div>
+          </div>
+          
+          <div class="metric-grid">
+            <div class="grid-cell">
+              <span class="cell-label">湿度</span>
+              <span class="cell-val" id="weather-humidity">--%</span>
+            </div>
+            <div class="grid-cell">
+              <span class="cell-label">风速</span>
+              <span class="cell-val" id="weather-wind">-- km/h</span>
+            </div>
+            <div class="grid-cell">
+              <span class="cell-label">风向角</span>
+              <span class="cell-val" id="weather-wind-dir">--°</span>
+            </div>
+            <div class="grid-cell">
+              <span class="cell-label">云量</span>
+              <span class="cell-val" id="weather-clouds">--%</span>
+            </div>
+          </div>
+
+          <div class="tech-divider"></div>
+          
+          <!-- 单色微缩气象预测走势图 -->
+          <div class="forecast-section">
+            <div class="forecast-header">
+              <span>[ 未来 5 小时温度走势 ]</span>
+            </div>
+            <canvas id="forecast-canvas" width="280" height="90"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 双击板块后滑出的深度分析右侧抽屉面板 -->
+  <div id="detail-panel" class="tech-panel hidden">
+    <div class="detail-scroll-container">
+      <div class="panel-header">
+        <span class="panel-title">[ 区域地理与气象深度分析 ]</span>
+        <button class="panel-close" id="detail-close-btn">[ ESC 返回全局 ]</button>
+      </div>
+      
+      <div class="panel-body">
+        <div class="focus-header">
+          <h2 id="detail-name">板块名称</h2>
+          <span class="subtitle" id="detail-type">空间定位分类</span>
+        </div>
+
+        <div class="tech-divider"></div>
+
+        <!-- 空间定位参数表 -->
+        <div class="detail-section">
+          <h3>[ 空间定位标识 ]</h3>
+          <div class="metric-row">
+            <span class="label">几何中心坐标:</span>
+            <span class="value" id="detail-coords">00.00°N, 00.00°E</span>
+          </div>
+          <div class="metric-row">
+            <span class="label">陆地面积:</span>
+            <span class="value" id="detail-area">N/A</span>
+          </div>
+          <div class="metric-row" id="detail-elevation-row" style="display:none;">
+            <span class="label">最高峰海拔:</span>
+            <span class="value" id="detail-elevation">N/A</span>
+          </div>
+          <div class="metric-row">
+            <span class="label">标准时区:</span>
+            <span class="value" id="detail-timezone">N/A</span>
+          </div>
+        </div>
+
+        <div class="tech-divider"></div>
+
+        <div class="detail-section">
+          <h3>[ 地理综述日志 ]</h3>
+          <p id="detail-desc" class="log-text">该坐标区域尚无详细的研究文献被加载。</p>
+        </div>
+
+        <div class="tech-divider"></div>
+
+        <!-- 板块范围内的监测站点子列表 -->
+        <div class="detail-section" id="detail-children-section">
+          <h3 id="detail-children-title">[ 范围内气象观测站 ]</h3>
+          <ul id="detail-children-list" class="tech-list">
+            <!-- 由 JS 动态安全填入的子观测站 -->
+          </ul>
+        </div>
+
+        <div class="tech-divider"></div>
+
+        <!-- 实况宏观大气数据 -->
+        <div class="detail-section">
+          <h3>[ 实时大气探测数据 ]</h3>
+          <div id="detail-weather-status">
+            <p class="log-text italic">点击下方站点进行定位并载入实时气象监测数据。</p>
+          </div>
+        </div>
+
+        <div class="tech-divider"></div>
+
+        <!-- 深度分析未来预测趋势 -->
+        <div class="detail-section">
+          <h3>[ 未来 5 小时气象走势预测 ]</h3>
+          <canvas id="detail-forecast-canvas" width="280" height="90"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作与指示栏 -->
+  <footer id="hud-footer">
+    <div class="footer-left">
+      <span class="instruction-tick">[ 操作指南 ]</span>
+      <span class="instruction">拖动鼠标: 旋转球体</span>
+      <span class="instruction-divider">//</span>
+      <span class="instruction">滚轮缩放: 放大缩小</span>
+      <span class="instruction-divider">//</span>
+      <span class="instruction">双击板块: 深度观察</span>
+      <span class="instruction-divider">//</span>
+      <span class="instruction">ESC键: 重置全局</span>
+    </div>
+    <div class="footer-right">
+      <span class="instruction" id="hud-fps">FPS: --</span>
+    </div>
+  </footer>
+
+  <!-- 依赖脚本文件 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/world-geom.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/globe.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

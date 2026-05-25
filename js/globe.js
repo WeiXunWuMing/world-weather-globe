@@ -478,19 +478,24 @@
     const lineRadius = BASE_RADIUS * 1.002; // 0.2% above surface to eliminate z-fighting
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(function() { controller.abort(); }, 8000);
+      var geojson = window.CHINA_GEOJSON;
+      if (!geojson) {
+        console.log('[GIS 3D Engine] window.CHINA_GEOJSON not pre-loaded. Fetching from Aliyun API...');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(function() { controller.abort(); }, 8000);
 
-      const response = await fetch(
-        'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
-        { signal: controller.signal }
-      );
-      clearTimeout(timeoutId);
+        const response = await fetch(
+          'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
 
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
 
-      var geojson = await response.json();
-      window.CHINA_GEOJSON = geojson; // Cache globally for exact point-in-polygon geocoding
+        geojson = await response.json();
+        window.CHINA_GEOJSON = geojson; // Cache globally for exact point-in-polygon geocoding
+      }
+
       var vertices = [];
       var colors = [];
       var featureCount = geojson.features.length;

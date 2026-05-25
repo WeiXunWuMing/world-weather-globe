@@ -34,11 +34,14 @@
 
 ## 🛠️ 核心技术架构与亮点特性
 
-### 1. 高精度 GIS 碰撞判定引擎 (Point-in-Polygon Geocoding)
-*   **传统痛点**：通常的简易 3D 地球悬停判断仅使用质心距离（Voronoi 近似），在行政区划边界交界处极易出现判定偏移，导致“2D 卡片显示”与“3D 视觉边界”不匹配。
+### 1. 高精度 GIS 碰撞判定引擎 (Point-in-Polygon Geocoding)与本地化离线防断网机制
+*   **传统痛点**：
+    *   普通的简易 3D 地球悬停判断仅使用质心距离（Voronoi 近似），导致行政边界容易偏移。
+    *   使用第三方在线 API（如阿里云 DataV CDN）拉取 GeoJSON，在部署到 `GitHub Pages` (HTTPS 协议) 后容易触发**跨域访问限制 (CORS)**、**混合内容安全警告 (Mixed Content)**、海外连接超时或国内 CDN 拦截，导致地图加载失败并自动降级为错误的/简易的 Voronoi 三角多边形拼凑边界。
 *   **解决方案**：
-    *   系统在初始化时，异步预载入并全局缓存了源自阿里云 DataV API 的官方高精细度 **中国省界 GeoJSON 数据包** (`window.CHINA_GEOJSON`)。
-    *   当鼠标指针悬停于中国陆地网格时，定位引擎立即启动基于射线投影法（Ray-Casting Algorithm）的 **点在多边形/多段线内 (Point-in-Polygon, PIP)** 碰撞检测，在亚像素级 100% 对齐 3D 渲染画面，使省份切换边界与视觉线条达到物理一致。
+    *   **本地化 JS 模块封装**：我们将官方高精细度 **中国省界 GeoJSON 数据包** 完整拉取并封装到了本地脚本 [js/china-geojson.js](file:///home/goodman/world-weather-globe/js/china-geojson.js) 中（作为全局 `window.CHINA_GEOJSON` 变量挂载）。
+    *   **免 Fetch / 免跨域瞬间载入**：在 `index.html` 中通过 `<script>` 标签首屏同步载入，不仅实现了 **0 毫秒** 的无网络延迟即时渲染，而且 100% 避开了所有 CORS 跨域政策和协议限制（在 GitHub Pages HTTPS、本地开发服务器、甚至是双击打开 `file://` 协议下均能 100% 稳定高精度呈现）。
+    *   **亚像素级高精对齐**：当鼠标指针悬停于中国陆地网格时，定位引擎立即启动基于射线投影法（Ray-Casting Algorithm）的 **点在多边形/多段线内 (Point-in-Polygon, PIP)** 碰撞检测，实现 3D 划分线与 HUD 悬浮面板的完美像素对齐。
 
 ### 2. 全国县市级精细化搜索导航系统 (Subdivision Search & Fly-To)
 *   **区县级覆盖**：内置大容量的中国地级市下辖区县/县级市关联表（`REAL_CITY_SUBDIVISIONS`），全面收录例如 Shaanxi `陕西省 - 渭南市` 下属的 `华阴市`、`韩城市`、`富平县` 等区县。
@@ -67,14 +70,15 @@
 
 ```text
 world-weather-globe/
-├── index.html        # 页面主入口 (HTML5 语义化结构，静态 CDN 载入依赖)
-├── index.css         # 系统样式表 (STARK BAUHAUS 极简黑暗系设计系统)
+├── index.html         # 页面主入口 (HTML5 语义化结构，静态 CDN 载入依赖)
+├── index.css          # 系统样式表 (STARK BAUHAUS 极简黑暗系设计系统)
 └── js/
-    ├── app.js        # 核心逻辑 (系统状态控制、搜索树检索、高精度 PIP 地理判定)
-    ├── data.js       # 地理信息 (省会、主干山脉/盆地数据以及县区级映射关系)
-    ├── weather.js    # 气象引擎 (Open-Meteo 实时通信、离线气候物理发生器)
-    ├── globe.js      # 3D渲染 (正交投影地球、3D星尘、时区虚线与赤道线绘制)
-    └── world-geom.js # 地理几何 (高度轻量化、约化精度并进行了中文汉化的全球陆地GeoJSON数据)
+    ├── app.js         # 核心逻辑 (系统状态控制、搜索树检索、高精度 PIP 地理判定)
+    ├── china-geojson.js # 中国边界 (本地封装的高精省界 GeoJSON 数据，彻底消除 GitHub Pages CORS/HTTPS 拦截)
+    ├── data.js        # 地理信息 (省会、主干山脉/盆地数据以及县区级映射关系)
+    ├── weather.js     # 气象引擎 (Open-Meteo 实时通信、离线气候物理发生器)
+    ├── globe.js       # 3D渲染 (正交投影地球、3D星尘、时区虚线与赤道线绘制)
+    └── world-geom.js  # 地理几何 (高度轻量化、约化精度并进行了中文汉化的全球陆地GeoJSON数据)
 ```
 
 ---
